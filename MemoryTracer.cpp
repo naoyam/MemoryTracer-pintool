@@ -8,6 +8,7 @@
 #include "portability.H"
 #include <iostream>
 #include <fstream>
+#include <ostream>
 #include <stdlib.h>
 #include <stddef.h>
 #include <assert.h>
@@ -29,12 +30,6 @@ BUFFER_ID bufId;
  */
 TLS_KEY mlog_key;
 
-/*
- * Number of OS pages for the buffer
- */
-#define NUM_BUF_PAGES 1024
-
-
 std::ostream * out = &cerr;
 
 std::vector<ADDRINT> instrumented;
@@ -46,7 +41,16 @@ KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,  "pintool",
                             "o", "pin.out", "specify file name for MemoryTracer output");
 
 KNOB<string> KnobFunction(KNOB_MODE_WRITEONCE,  "pintool",
-                          "f", "__NO_SUCH_FUNCTION__", "specify the name of function to trace");
+                          "f", "__NO_SUCH_FUNCTION__",
+                          "name of function to trace");
+
+KNOB<UINT32> KnobNumPagesInBuffer(KNOB_MODE_WRITEONCE,  "pintool",
+                                  "num_pages_in_buffer", "256",
+                                  "number of pages in buffer");
+
+KNOB<bool> KnobDumpText(KNOB_MODE_WRITEONCE,  "pintool",
+                        "dump_text_trace", "1",
+                        "dump trace in text");
 
 string target_func("__NO_SUCH_FUNCTION__");
 ADDRINT target_func_addr = 0;
@@ -90,14 +94,14 @@ struct MEMREF {
  */
 class MLOG
 {
-  public:
-    MLOG(THREADID tid);
-    ~MLOG();
+ public:
+  MLOG(THREADID tid);
+  ~MLOG();
 
-    VOID DumpBufferToFile( struct MEMREF * reference, UINT64 numElements, THREADID tid );
+  VOID DumpBufferToFile( struct MEMREF * reference, UINT64 numElements, THREADID tid );
 
-  private:
-    ofstream _ofile;
+ private:
+  FILE *_ofile;
 };
 
 
@@ -105,32 +109,41 @@ MLOG::MLOG(THREADID tid)
 {
   string filename = KnobOutputFile.Value() + "." + decstr(getpid_portable()) + "." + decstr(tid);
   cerr << "New MLOG: Trace will be saved in " << filename << endl;
-  _ofile.open(filename.c_str());
-    
+  if (KnobDumpText) {
+    cerr << "Dump trace in text" << endl;
+    _ofile = fopen(filename.c_str(), "w");
+  } else {
+    cerr << "Dump trace in binary" << endl;
+    _ofile = fopen(filename.c_str(), "wb");
+  }
   if ( ! _ofile )
   {
     cerr << "Error: could not open output file." << endl;
     exit(1);
   }
     
-  _ofile << hex;
+  //_ofile << hex;
 }
 
 
 MLOG::~MLOG()
 {
-    _ofile.close();
+  fclose(_ofile);
 }
 
 
 VOID MLOG::DumpBufferToFile( struct MEMREF * reference, UINT64 numElements, THREADID tid )
 {
+  if (KnobDumpText) {
     for(UINT64 i=0; i<numElements; i++, reference++)
     {
       //if (reference->addr != 0)
-      _ofile << reference->type << " " << reference->addr
-             << " " << reference->size << endl;
+      fprintf(_ofile, "%d %p %u\n", reference->type, (void*)reference->addr,
+              reference->size);
     }
+  } else {
+    fwrite(reference, sizeof(reference), numElements, _ofile);
+  }
 }
 
 
@@ -432,7 +445,8 @@ int main(int argc, char *argv[])
   // Initialize the memory reference buffer;
   // set up the callback to process the buffer.
   //
-  bufId = PIN_DefineTraceBuffer(sizeof(struct MEMREF), NUM_BUF_PAGES,
+  bufId = PIN_DefineTraceBuffer(sizeof(struct MEMREF),
+                                KnobNumPagesInBuffer,
                                 BufferFull, 0);
 
   if(bufId == BUFFER_ID_INVALID)
