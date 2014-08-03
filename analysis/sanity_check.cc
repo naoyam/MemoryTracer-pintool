@@ -24,17 +24,17 @@ bool validate(char *path) {
       } else if (mr.type == TRACE_FUNC_RET) {
         // check the top of the stack matches the ret entry
         if (call_stack.size() == 0) {
-          cerr << "ERROR! No call for return ("
+          cout << "ERROR! No call for return ("
                << mr.addr << ")" << endl;
-          cerr << "Number of processed trace entries: " << count << endl;
+          cout << "Number of processed trace entries: " << count << endl;
           return false;
         }
         intptr_t call_addr = call_stack.top();
         if (call_addr != mr.addr) {
-          cerr << "ERROR! Call (" << call_addr
+          cout << "ERROR! Call (" << call_addr
                << ") and return (" << mr.addr << ") do not match."
                << endl;
-          cerr << "Number of processed trace entries: " << count << endl;
+          cout << "Number of processed trace entries: " << count << endl;
           return false;
         }
         call_stack.pop();
@@ -47,16 +47,17 @@ bool validate(char *path) {
   }
   
   if (call_stack.size() != 0) {
-    cerr << "ERROR! Missing return for call: ";
+    cout << "ERROR! Missing return for call: ";
     while (call_stack.size() > 0) {
-      cerr << call_stack.top() << " ";
+      cout << call_stack.top() << " ";
       call_stack.pop();
     }
-    cerr << endl;
-    cerr << "Number of processed trace entries: " << count << endl;
+    cout << endl;
+    cout << "Number of processed trace entries: " << count << endl;
     return false;
   }
-  cerr << "Number of processed trace entries: " << count << endl;            
+  cout << "Number of processed trace entries: " << count << endl;
+  cout << "Success." << endl;
   return true;
 }
 

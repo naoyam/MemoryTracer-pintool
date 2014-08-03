@@ -45,6 +45,7 @@ bool extract(char *input_path, char *output_path) {
         if (in_extraction) {
           // Done
           fclose(out);
+          cout << "Extraction success." << endl;
           return true;
         }
       } else {
