@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <vector>
 #include <algorithm>
+#include "common.h"
 
 /* ================================================================== */
 // Global variables 
@@ -75,20 +76,6 @@ INT32 Usage()
 /* ===================================================================== */
 // Analysis routines
 /* ===================================================================== */
-
-enum {
-  TRACE_READ,
-  TRACE_WRITE,
-  TRACE_FUNC_BEGIN,
-  TRACE_FUNC_END
-};
-
-struct MEMREF {
-  ADDRINT addr;
-  UINT32 type;
-  UINT32 size;
-};
-
 /*
  * MLOG - thread specific data that is not handled by the buffering API.
  */
@@ -142,7 +129,13 @@ VOID MLOG::DumpBufferToFile( struct MEMREF * reference, UINT64 numElements, THRE
               reference->size);
     }
   } else {
-    fwrite(reference, sizeof(reference), numElements, _ofile);
+    size_t nelm = fwrite(reference, sizeof(MEMREF), numElements, _ofile);
+    
+    if (nelm != numElements) {
+      cerr << nelm << " of "  << numElements << " written." << endl;
+      cerr << (numElements - nelm) << " remains." << endl;
+      exit(1);
+    }
   }
 }
 
@@ -225,7 +218,7 @@ static void TraceCall(TRACE trace, VOID *v) {
             ins, IPOINT_BEFORE, bufId,
             IARG_BRANCH_TARGET_ADDR, offsetof(struct MEMREF, addr),
             IARG_UINT32, 0, offsetof(struct MEMREF, size),      
-            IARG_UINT32, TRACE_FUNC_BEGIN, offsetof(struct MEMREF, type),      
+            IARG_UINT32, TRACE_FUNC_CALL, offsetof(struct MEMREF, type),      
             IARG_END);
       }
     }
@@ -261,7 +254,7 @@ VOID Trace(TRACE trace, VOID *v)
         ins_head, IPOINT_BEFORE, bufId,
         IARG_ADDRINT, RTN_Address(rtn), offsetof(struct MEMREF, addr),
         IARG_UINT32, 0, offsetof(struct MEMREF, size),      
-        IARG_UINT32, TRACE_FUNC_BEGIN, offsetof(struct MEMREF, type),      
+        IARG_UINT32, TRACE_FUNC_CALL, offsetof(struct MEMREF, type),      
         IARG_END);
     instrumented.push_back(INS_Address(ins_head));
   }
@@ -301,7 +294,7 @@ VOID Trace(TRACE trace, VOID *v)
             (ins, IPOINT_BEFORE, bufId,
              IARG_ADDRINT, RTN_Address(rtn), offsetof(struct MEMREF, addr),
              IARG_UINT32, 0, offsetof(struct MEMREF, size), 
-             IARG_UINT32, TRACE_FUNC_END, offsetof(struct MEMREF, type),
+             IARG_UINT32, TRACE_FUNC_RET, offsetof(struct MEMREF, type),
              IARG_END);
       }
     }    
@@ -326,7 +319,7 @@ VOID Routine(RTN rtn, VOID *v)
       ins_head, IPOINT_BEFORE, bufId,
       IARG_ADDRINT, rtn_addr, offsetof(struct MEMREF, addr),
       IARG_UINT32, 0, offsetof(struct MEMREF, size),      
-      IARG_UINT32, TRACE_FUNC_BEGIN, offsetof(struct MEMREF, type),      
+      IARG_UINT32, TRACE_FUNC_CALL, offsetof(struct MEMREF, type),      
       IARG_END);
 
   
@@ -337,7 +330,7 @@ VOID Routine(RTN rtn, VOID *v)
           ins, IPOINT_BEFORE, bufId,
           IARG_ADDRINT, rtn_addr, offsetof(struct MEMREF, addr),
           IARG_UINT32, 0, offsetof(struct MEMREF, size),      
-          IARG_UINT32, TRACE_FUNC_END, offsetof(struct MEMREF, type),      
+          IARG_UINT32, TRACE_FUNC_RET, offsetof(struct MEMREF, type),      
           IARG_END);
     }
   }
