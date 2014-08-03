@@ -23,7 +23,7 @@ bool validate(char *path) {
         cerr << "Call to " << mr.addr << endl;
       } else if (mr.type == TRACE_FUNC_RET) {
         // check the top of the stack matches the ret entry
-        if (call_stack.size() > 0) {
+        if (call_stack.size() == 0) {
           cerr << "ERROR! No call for return ("
                << mr.addr << ")" << endl;
           cerr << "Number of processed trace entries: " << count << endl;

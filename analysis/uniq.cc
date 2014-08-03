@@ -1,6 +1,7 @@
 #include <iostream>
 #include <map>
 #include <utility>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
@@ -14,7 +15,7 @@ using namespace std;
 
 #define BUF_LEN (1024)
 
-typedef map<intptr_t, size_t> addr_map;
+typedef map<intptr_t, pair<size_t, uint32_t> > addr_map;
 
 bool uniq(char *path) {
   cerr << "MEMREF: " << sizeof(MEMREF) << endl;
@@ -32,8 +33,9 @@ bool uniq(char *path) {
   addr_map *rm  = NULL;
   addr_map *wm  = NULL;
   int num_maps = 0;
+  size_t bytes_read = 0;
   
-#pragma omp parallel reduction(+:count)
+#pragma omp parallel reduction(+:count, bytes_read)
   {
 #pragma omp single
     {
@@ -56,15 +58,23 @@ bool uniq(char *path) {
         } else if (mr.type == TRACE_FUNC_RET) {
           cerr << "Retrun from " << mr.addr << endl;          
         } else if (mr.type == TRACE_READ) {
-          pair<addr_map::iterator, bool> ret = rm[tid].insert(make_pair(mr.addr, 0));
+          pair<addr_map::iterator, bool> ret = rm[tid].insert(
+              make_pair(mr.addr, make_pair(0, mr.size)));
           if (!ret.second) {
-            ++ret.first->second;
+            ++ret.first->second.first;
+            ret.first->second.second =
+                std::max(ret.first->second.second, mr.size);
           }
+          bytes_read += mr.size;
+          
         }
+        ++count;
       }
     }
   }
-  cerr << "Number of elements processed: " << count << endl;
+  
+  cout << "Number of elements processed: " << count << endl;
+  cout << "Total bytes read: " << bytes_read << endl;  
 
   for (int i = 1; i < num_maps; ++i) {
     addr_map::iterator it = rm[i].begin();
@@ -72,10 +82,21 @@ bool uniq(char *path) {
     for (; it != it_end; ++it) {
       pair<addr_map::iterator, bool> ret = rm[0].insert(*it);
       if (!ret.second) {
-        ret.first->second += it->second;
+        ret.first->second.first += it->second.first;
       }
     }
   }
+
+  cout << "Number of uniq addresses: " << rm[0].size() << endl;
+
+  addr_map::iterator it = rm[0].begin();
+  addr_map::iterator it_end = rm[0].end();
+  size_t uniq_read_bytes = 0;
+  for (; it != it_end; ++it) {
+    uniq_read_bytes += it->second.second;
+  }
+  cout << "Total uniq bytes read: " << uniq_read_bytes << endl;
+  
 
   return true;  
 }
