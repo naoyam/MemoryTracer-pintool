@@ -59,7 +59,7 @@ bool uniq(char *path) {
           cerr << "Retrun from " << mr.addr << endl;          
         } else if (mr.type == TRACE_READ) {
           pair<addr_map::iterator, bool> ret = rm[tid].insert(
-              make_pair(mr.addr, make_pair(0, mr.size)));
+              make_pair(mr.addr, make_pair(1, mr.size)));
           if (!ret.second) {
             ++ret.first->second.first;
             ret.first->second.second =
@@ -83,6 +83,8 @@ bool uniq(char *path) {
       pair<addr_map::iterator, bool> ret = rm[0].insert(*it);
       if (!ret.second) {
         ret.first->second.first += it->second.first;
+        ret.first->second.second = max(ret.first->second.second,
+                it->second.second);
       }
     }
   }
@@ -92,10 +94,13 @@ bool uniq(char *path) {
   addr_map::iterator it = rm[0].begin();
   addr_map::iterator it_end = rm[0].end();
   size_t uniq_read_bytes = 0;
+  size_t dup_read_bytes = 0;
   for (; it != it_end; ++it) {
     uniq_read_bytes += it->second.second;
+    dup_read_bytes += it->second.first * it->second.second;
   }
   cout << "Total uniq bytes read: " << uniq_read_bytes << endl;
+  cout << "Total dup bytes read: " << dup_read_bytes << endl;
   
 
   return true;  
